@@ -1,0 +1,42 @@
+name: Alertes Discord
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+    - cron: '13 9 * * *'
+permissions:
+  contents: write
+concurrency:
+  group: discord-alerts
+  cancel-in-progress: false
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: NFL
+        if: github.event.schedule != '13 9 * * *'
+        env:
+          NFL_WEBHOOK: ${{ secrets.NFL_WEBHOOK }}
+        run: python bots.py nfl
+      - name: Bons plans
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '13 9 * * *'
+        env:
+          OFFERS_WEBHOOK: ${{ secrets.OFFERS_WEBHOOK }}
+        run: python bots.py offers
+      - name: Mémoriser les alertes déjà envoyées
+        if: always()
+        run: |
+          if [ -f state.json ]; then
+            git add state.json
+            if ! git diff --cached --quiet; then
+              git config user.name 'github-actions[bot]'
+              git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+              git commit -m 'Mémoriser les alertes [skip ci]'
+              git push
+            fi
+          fi
